@@ -1,0 +1,46 @@
+---
+// Development test page — not shipped to production.
+// Visit http://localhost:4321/ to test the widget with a sample token.
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Foji Widget — Dev Test</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f4f4f5;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      .demo {
+        max-width: 600px;
+        text-align: center;
+      }
+      h1 { color: #FF2D2D; margin-bottom: 1rem; }
+      p { color: #71717a; }
+    </style>
+  </head>
+  <body>
+    <div class="demo">
+      <h1>Foji Widget Test Page</h1>
+      <p>
+        The chat bubble should appear in the bottom-right corner.<br />
+        Replace <code>data-agent-token</code> with a real token.
+      </p>
+    </div>
+
+    <!-- Widget embed — same snippet customers use -->
+    <script
+      src="/widget.js"
+      data-agent-token="test-agent-token-replace-me"
+      data-api-url="http://localhost:8000"
+      async
+    ></script>
+  </body>
+</html>
