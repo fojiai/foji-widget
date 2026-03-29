@@ -18,15 +18,84 @@ jobs:
     runs-on: ubuntu-latest
     needs: guard
     environment: prod
+    env:
+      AWS_REGION: us-east-1
+      AMPLIFY_APP_NAME: foji-widget-prod
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "npm" }
+        with:
+          node-version: "20"
+          cache: "npm"
+
       - run: npm ci
       - run: npm run build
-      - uses: amondnet/vercel-action@v25
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: "--prod"
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure Amplify app exists
+        id: amplify-app
+        run: |
+          APP_ID=$(aws amplify list-apps \
+            --query "apps[?name=='${AMPLIFY_APP_NAME}'].appId | [0]" --output text)
+
+          if [ "$APP_ID" = "None" ] || [ -z "$APP_ID" ]; then
+            echo "Creating Amplify app..."
+            APP_ID=$(aws amplify create-app \
+              --name "$AMPLIFY_APP_NAME" \
+              --platform WEB \
+              --query "app.appId" --output text)
+            aws amplify create-branch \
+              --app-id "$APP_ID" \
+              --branch-name main
+          fi
+          echo "app_id=$APP_ID" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Amplify
+        env:
+          APP_ID: ${{ steps.amplify-app.outputs.app_id }}
+        run: |
+          cd dist && zip -r ../deployment.zip . && cd ..
+
+          UPLOAD=$(aws amplify create-deployment \
+            --app-id "$APP_ID" \
+            --branch-name main \
+            --query '{jobId: jobId, zipUploadUrl: zipUploadUrl}' --output json)
+
+          UPLOAD_URL=$(echo $UPLOAD | jq -r '.zipUploadUrl')
+          JOB_ID=$(echo $UPLOAD | jq -r '.jobId')
+
+          curl -T deployment.zip "$UPLOAD_URL" --fail --silent
+
+          aws amplify start-deployment \
+            --app-id "$APP_ID" \
+            --branch-name main \
+            --job-id "$JOB_ID"
+
+          for i in $(seq 1 30); do
+            STATUS=$(aws amplify get-job \
+              --app-id "$APP_ID" \
+              --branch-name main \
+              --job-id "$JOB_ID" \
+              --query "job.summary.status" --output text)
+            echo "Status: $STATUS (attempt $i/30)"
+            if [ "$STATUS" = "SUCCEED" ]; then
+              DOMAIN=$(aws amplify get-app --app-id "$APP_ID" \
+                --query "app.defaultDomain" --output text)
+              echo "## Production Deployment" >> $GITHUB_STEP_SUMMARY
+              echo "**URL**: https://main.${DOMAIN}" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELLED" ]; then
+              echo "Deployment failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Deployment timed out" && exit 1
