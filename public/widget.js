@@ -10,7 +10,7 @@
  *   ></script>
  *
  * Optional attributes:
- *   data-api-url       Override the API base URL (defaults to https://api.foji.ai)
+ *   data-api-url       Override the API base URL
  *   data-position      "right" | "left"  (default: "right")
  *   data-primary-color Hex color for the launcher button  (default: "#FF2D2D")
  *   data-title         Chat header title  (default: "Assistant")
@@ -27,7 +27,7 @@
 
   const script = document.currentScript;
   const AGENT_TOKEN = script?.getAttribute("data-agent-token") || "";
-  const API_URL = (script?.getAttribute("data-api-url") || "https://api.foji.ai").replace(/\/$/, "");
+  const API_URL = (script?.getAttribute("data-api-url") || "__DEFAULT_API_URL__").replace(/\/$/, "");
   const POSITION = script?.getAttribute("data-position") || "right";
   const PRIMARY = script?.getAttribute("data-primary-color") || "#FF2D2D";
   const TITLE = script?.getAttribute("data-title") || "Assistant";
