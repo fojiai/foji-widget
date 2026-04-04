@@ -341,12 +341,13 @@
     win.classList.remove("closed");
     shadowRoot.getElementById("foji-input")?.focus();
 
-    // Show greeting on first open
+    // Show greeting on first open only
     if (messages.length === 0) {
       // Use custom welcome message if set, otherwise language-based greeting
       const welcomeMsg = agentInfo?.welcome_message;
+      let greeting;
       if (welcomeMsg) {
-        appendMessage("assistant", welcomeMsg);
+        greeting = welcomeMsg;
       } else {
         const name = agentInfo?.name || title;
         const greetings = {
@@ -354,8 +355,10 @@
           "Es": `\u00a1Hola! Soy ${name}. \u00bfC\u00f3mo puedo ayudarte?`,
         };
         const lang = agentInfo?.agent_language || "En";
-        appendMessage("assistant", greetings[lang] || `Hi! I'm ${name}. How can I help you today?`);
+        greeting = greetings[lang] || `Hi! I'm ${name}. How can I help you today?`;
       }
+      appendMessage("assistant", greeting);
+      messages.push({ role: "assistant", content: greeting });
 
       // Show conversation starters if available
       const starters = agentInfo?.conversation_starters;
