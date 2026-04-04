@@ -28,13 +28,15 @@
   const script = document.currentScript;
   const AGENT_TOKEN = script?.getAttribute("data-agent-token") || "";
   const API_URL = (script?.getAttribute("data-api-url") || "__DEFAULT_API_URL__").replace(/\/$/, "");
-  const POSITION = script?.getAttribute("data-position") || "right";
-  const PRIMARY = script?.getAttribute("data-primary-color") || "#FF2D2D";
-  const TITLE = script?.getAttribute("data-title") || "Assistant";
-  const PLACEHOLDER = script?.getAttribute("data-placeholder") || "Type a message…";
+
+  // Mutable — can be overridden by agent-info response
+  let position = script?.getAttribute("data-position") || "right";
+  let primary = script?.getAttribute("data-primary-color") || "#FF2D2D";
+  let title = script?.getAttribute("data-title") || "Assistant";
+  let placeholder = script?.getAttribute("data-placeholder") || "Type a message\u2026";
 
   if (!AGENT_TOKEN) {
-    console.warn("[Foji Widget] No data-agent-token provided — widget will not load.");
+    console.warn("[Foji Widget] No data-agent-token provided \u2014 widget will not load.");
     return;
   }
 
@@ -58,20 +60,22 @@
   let shadowRoot = null;
   let agentInfo = null; // cached from GET /api/v1/widget/agent-info
 
-  // ── Styles ────────────────────────────────────────────────────────────────
+  // ── Styles (CSS custom properties for dynamic theming) ────────────────────
 
-  const CSS = `
+  function generateCSS() {
+    const pos = position;
+    return `
     :host { all: initial; font-family: system-ui, -apple-system, sans-serif; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     #foji-launcher {
       position: fixed;
       bottom: 24px;
-      ${POSITION}: 24px;
+      ${pos}: 24px;
       z-index: 999999;
       width: 56px; height: 56px;
       border-radius: 50%;
-      background: ${PRIMARY};
+      background: var(--foji-primary, ${primary});
       border: none; cursor: pointer;
       box-shadow: 0 4px 20px rgba(0,0,0,0.25);
       display: flex; align-items: center; justify-content: center;
@@ -83,7 +87,7 @@
     #foji-window {
       position: fixed;
       bottom: 92px;
-      ${POSITION}: 24px;
+      ${pos}: 24px;
       z-index: 999998;
       width: 360px;
       max-height: 520px;
@@ -92,13 +96,13 @@
       box-shadow: 0 8px 40px rgba(0,0,0,0.18);
       display: flex; flex-direction: column;
       overflow: hidden;
-      transform-origin: bottom ${POSITION};
+      transform-origin: bottom ${pos};
       transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), opacity 0.15s;
     }
     #foji-window.closed { transform: scale(0.85); opacity: 0; pointer-events: none; }
 
     #foji-header {
-      background: ${PRIMARY};
+      background: var(--foji-primary, ${primary});
       color: white;
       padding: 14px 16px;
       display: flex; align-items: center; gap: 10px;
@@ -129,7 +133,7 @@
     }
     .foji-msg.user {
       align-self: flex-end;
-      background: ${PRIMARY}; color: white;
+      background: var(--foji-primary, ${primary}); color: white;
       border-bottom-right-radius: 4px;
     }
     .foji-msg.assistant {
@@ -159,14 +163,14 @@
       background: #fafafa; resize: none; min-height: 40px; max-height: 120px;
       font-family: inherit; transition: border-color 0.15s;
     }
-    #foji-input:focus { border-color: ${PRIMARY}; background: #fff; }
+    #foji-input:focus { border-color: var(--foji-primary, ${primary}); background: #fff; }
     #foji-send {
       width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
-      background: ${PRIMARY}; border: none; cursor: pointer;
+      background: var(--foji-primary, ${primary}); border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.15s, transform 0.1s;
     }
-    #foji-send:hover { background: ${PRIMARY}dd; }
+    #foji-send:hover { opacity: 0.9; }
     #foji-send:active { transform: scale(0.92); }
     #foji-send:disabled { opacity: 0.5; cursor: not-allowed; }
     #foji-send svg { width: 18px; height: 18px; fill: white; }
@@ -176,12 +180,51 @@
       padding: 4px 0 8px;
     }
     #foji-powered a { color: #aaa; text-decoration: none; }
-    #foji-powered a:hover { color: ${PRIMARY}; }
+    #foji-powered a:hover { color: var(--foji-primary, ${primary}); }
+
+    .foji-starters {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      align-self: flex-start; max-width: 95%;
+    }
+    .foji-starter-chip {
+      background: #fff; color: var(--foji-primary, ${primary});
+      border: 1px solid var(--foji-primary, ${primary});
+      border-radius: 16px; padding: 6px 12px;
+      font-size: 13px; cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+    }
+    .foji-starter-chip:hover {
+      background: var(--foji-primary, ${primary}); color: white;
+    }
 
     @media (max-width: 420px) {
-      #foji-window { width: calc(100vw - 24px); ${POSITION}: 12px; }
+      #foji-window { width: calc(100vw - 24px); ${pos}: 12px; }
     }
   `;
+  }
+
+  // ── Theme application ─────────────────────────────────────────────────────
+
+  function applyTheme() {
+    if (!shadowRoot) return;
+
+    // Update CSS custom property on the host
+    const host = shadowRoot.host;
+    host.style.setProperty("--foji-primary", primary);
+
+    // Update style element (for position-dependent rules)
+    const style = shadowRoot.querySelector("style");
+    if (style) style.textContent = generateCSS();
+
+    // Update header title
+    const titleEl = shadowRoot.getElementById("foji-header-title");
+    if (titleEl) titleEl.textContent = title;
+
+    // Update input placeholder
+    const input = shadowRoot.getElementById("foji-input");
+    if (input) input.placeholder = placeholder;
+  }
 
   // ── HTML ──────────────────────────────────────────────────────────────────
 
@@ -200,7 +243,7 @@
     shadowRoot = host.attachShadow({ mode: "open" });
 
     const style = document.createElement("style");
-    style.textContent = CSS;
+    style.textContent = generateCSS();
     shadowRoot.appendChild(style);
 
     shadowRoot.innerHTML += `
@@ -209,7 +252,7 @@
       <div id="foji-window" class="closed">
         <div id="foji-header">
           <div id="foji-header-avatar">${BOT_ICON}</div>
-          <span id="foji-header-title">${escapeHtml(TITLE)}</span>
+          <span id="foji-header-title">${escapeHtml(title)}</span>
           <button id="foji-close" aria-label="Close">&times;</button>
         </div>
         <div id="foji-messages" role="log" aria-live="polite"></div>
@@ -217,7 +260,7 @@
           <textarea
             id="foji-input"
             rows="1"
-            placeholder="${escapeHtml(PLACEHOLDER)}"
+            placeholder="${escapeHtml(placeholder)}"
             aria-label="Message"
           ></textarea>
           <button id="foji-send" aria-label="Send">${SEND_ICON}</button>
@@ -231,6 +274,32 @@
     shadowRoot.prepend(style);
 
     bindEvents();
+
+    // Fetch agent info at mount (non-blocking) to apply theming early
+    fetchAgentInfo();
+  }
+
+  // ── Agent Info ────────────────────────────────────────────────────────────
+
+  async function fetchAgentInfo() {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/widget/agent-info`, {
+        headers: { "X-Agent-Token": AGENT_TOKEN },
+      });
+      if (res.ok) {
+        agentInfo = await res.json();
+
+        // Apply server-side widget customization overrides
+        if (agentInfo.widget_primary_color) primary = agentInfo.widget_primary_color;
+        if (agentInfo.widget_title) title = agentInfo.widget_title;
+        if (agentInfo.widget_placeholder) placeholder = agentInfo.widget_placeholder;
+        if (agentInfo.widget_position) position = agentInfo.widget_position;
+
+        applyTheme();
+      }
+    } catch {
+      // Silently fail — widget works fine without customization
+    }
   }
 
   // ── Events ────────────────────────────────────────────────────────────────
@@ -272,22 +341,26 @@
     win.classList.remove("closed");
     shadowRoot.getElementById("foji-input")?.focus();
 
-    // Show personalized greeting on first open
+    // Show greeting on first open
     if (messages.length === 0) {
-      try {
-        if (!agentInfo) {
-          const res = await fetch(`${API_URL}/api/v1/widget/agent-info?token=${encodeURIComponent(AGENT_TOKEN)}`);
-          if (res.ok) agentInfo = await res.json();
-        }
-        const name = agentInfo?.name || TITLE;
+      // Use custom welcome message if set, otherwise language-based greeting
+      const welcomeMsg = agentInfo?.welcome_message;
+      if (welcomeMsg) {
+        appendMessage("assistant", welcomeMsg);
+      } else {
+        const name = agentInfo?.name || title;
         const greetings = {
-          "pt-br": `Olá! Sou ${name}. Como posso ajudar?`,
-          "es": `¡Hola! Soy ${name}. ¿Cómo puedo ayudarte?`,
+          "PtBr": `Ol\u00e1! Sou ${name}. Como posso ajudar?`,
+          "Es": `\u00a1Hola! Soy ${name}. \u00bfC\u00f3mo puedo ayudarte?`,
         };
-        const lang = agentInfo?.agent_language || "en";
+        const lang = agentInfo?.agent_language || "En";
         appendMessage("assistant", greetings[lang] || `Hi! I'm ${name}. How can I help you today?`);
-      } catch {
-        appendMessage("assistant", `Hi! I'm ${TITLE}. How can I help you today?`);
+      }
+
+      // Show conversation starters if available
+      const starters = agentInfo?.conversation_starters;
+      if (Array.isArray(starters) && starters.length > 0) {
+        renderStarters(starters);
       }
     }
   }
@@ -295,6 +368,39 @@
   function close() {
     isOpen = false;
     shadowRoot.getElementById("foji-window").classList.add("closed");
+  }
+
+  // ── Conversation Starters ─────────────────────────────────────────────────
+
+  function renderStarters(starters) {
+    const container = shadowRoot.getElementById("foji-messages");
+    const wrap = document.createElement("div");
+    wrap.className = "foji-starters";
+    wrap.id = "foji-starters";
+
+    starters.slice(0, 4).forEach((text) => {
+      if (!text || !text.trim()) return;
+      const chip = document.createElement("button");
+      chip.className = "foji-starter-chip";
+      chip.textContent = text.trim();
+      chip.addEventListener("click", () => {
+        removeStarters();
+        const input = shadowRoot.getElementById("foji-input");
+        input.value = text.trim();
+        sendMessage();
+      });
+      wrap.appendChild(chip);
+    });
+
+    if (wrap.children.length > 0) {
+      container.appendChild(wrap);
+      scrollToBottom();
+    }
+  }
+
+  function removeStarters() {
+    const el = shadowRoot.getElementById("foji-starters");
+    if (el) el.remove();
   }
 
   // ── Messaging ─────────────────────────────────────────────────────────────
@@ -307,6 +413,9 @@
 
     input.value = "";
     input.style.height = "auto";
+
+    // Remove starters on first user message
+    removeStarters();
 
     appendMessage("user", text);
     messages.push({ role: "user", content: text });

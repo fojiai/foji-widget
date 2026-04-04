@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foji AI — Agent Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: transparent; min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      const apiUrl = params.get("api") || "";
+
+      if (!token) {
+        document.body.innerHTML = '<p style="padding:24px;color:#888;font-family:system-ui;">No agent token provided.</p>';
+        return;
+      }
+
+      // Inject the widget script with the token
+      const script = document.createElement("script");
+      script.src = "./widget.js";
+      script.setAttribute("data-agent-token", token);
+      if (apiUrl) script.setAttribute("data-api-url", apiUrl);
+      script.async = true;
+      document.body.appendChild(script);
+
+      // Auto-open the chat after widget loads, and hide the launcher
+      script.onload = function () {
+        setTimeout(function () {
+          const host = document.getElementById("foji-widget-host");
+          if (!host || !host.shadowRoot) return;
+          const launcher = host.shadowRoot.getElementById("foji-launcher");
+          const win = host.shadowRoot.getElementById("foji-window");
+          if (launcher) launcher.style.display = "none";
+          if (win) {
+            win.classList.remove("closed");
+            win.style.position = "relative";
+            win.style.bottom = "auto";
+            win.style.left = "auto";
+            win.style.right = "auto";
+            win.style.width = "100%";
+            win.style.maxHeight = "100vh";
+            win.style.height = "100vh";
+            win.style.borderRadius = "0";
+            win.style.boxShadow = "none";
+          }
+          // Trigger the open greeting
+          if (launcher) launcher.click();
+        }, 500);
+      };
+    })();
+  </script>
+</body>
+</html>
