@@ -62,6 +62,7 @@
   let messages = []; // { role: "user"|"assistant", content: string }
   let shadowRoot = null;
   let agentInfo = null; // cached from GET /api/v1/widget/agent-info
+  let agentInfoPromise = null; // resolved when fetch completes
 
   // ── Styles (CSS custom properties for dynamic theming) ────────────────────
 
@@ -278,8 +279,9 @@
 
     bindEvents();
 
-    // Fetch agent info at mount (non-blocking) to apply theming early
-    fetchAgentInfo();
+    // Fetch agent info at mount to apply theming early — store the promise
+    // so open() can await it before showing the greeting.
+    agentInfoPromise = fetchAgentInfo();
   }
 
   // ── Agent Info ────────────────────────────────────────────────────────────
@@ -343,6 +345,12 @@
     const win = shadowRoot.getElementById("foji-window");
     win.classList.remove("closed");
     shadowRoot.getElementById("foji-input")?.focus();
+
+    // Wait for agent info before showing greeting (so name/language/custom msg are available)
+    if (agentInfoPromise) {
+      await agentInfoPromise;
+      agentInfoPromise = null;
+    }
 
     // Show greeting on first open only
     if (messages.length === 0) {
