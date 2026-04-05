@@ -25,7 +25,10 @@
 
   // ── Config ────────────────────────────────────────────────────────────────
 
-  const script = document.currentScript;
+  // document.currentScript is null for dynamically injected scripts (e.g. test.html),
+  // so fall back to finding the script tag by its data attribute.
+  const script = document.currentScript
+    || document.querySelector("script[data-agent-token]");
   const AGENT_TOKEN = script?.getAttribute("data-agent-token") || "";
   const API_URL = (script?.getAttribute("data-api-url") || "__DEFAULT_API_URL__").replace(/\/$/, "");
 
