@@ -148,6 +148,36 @@
     }
     .foji-msg.typing { font-style: italic; color: #888; }
 
+    .foji-msg.assistant h1, .foji-msg.assistant h2, .foji-msg.assistant h3 {
+      font-weight: 600; margin: 8px 0 4px; line-height: 1.3;
+    }
+    .foji-msg.assistant h1 { font-size: 16px; }
+    .foji-msg.assistant h2 { font-size: 15px; }
+    .foji-msg.assistant h3 { font-size: 14px; }
+    .foji-msg.assistant p { margin: 4px 0; }
+    .foji-msg.assistant ul, .foji-msg.assistant ol {
+      margin: 4px 0; padding-left: 20px;
+    }
+    .foji-msg.assistant li { margin: 2px 0; }
+    .foji-msg.assistant strong { font-weight: 600; }
+    .foji-msg.assistant em { font-style: italic; }
+    .foji-msg.assistant code {
+      background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 3px;
+      font-family: monospace; font-size: 13px;
+    }
+    .foji-msg.assistant pre {
+      background: #f4f4f5; padding: 8px 10px; border-radius: 6px;
+      overflow-x: auto; margin: 6px 0;
+    }
+    .foji-msg.assistant pre code {
+      background: none; padding: 0; font-size: 12px;
+    }
+    .foji-msg.assistant a { color: var(--foji-primary, ${primary}); text-decoration: underline; }
+    .foji-msg.assistant blockquote {
+      border-left: 3px solid #e4e4e7; padding-left: 10px; margin: 4px 0; color: #555;
+    }
+    .foji-msg.assistant hr { border: none; border-top: 1px solid #e4e4e7; margin: 8px 0; }
+
     .foji-dots { display: inline-flex; gap: 4px; align-items: center; }
     .foji-dots span {
       width: 6px; height: 6px; border-radius: 50%; background: #aaa;
@@ -493,7 +523,7 @@
 
           if (parsed.chunk) {
             fullText += parsed.chunk;
-            msgEl.textContent = fullText;
+            msgEl.innerHTML = renderMarkdown(fullText);
             scrollToBottom();
           }
 
@@ -515,13 +545,135 @@
     return fullText;
   }
 
+  // ── Markdown Renderer ─────────────────────────────────────────────────────
+
+  /**
+   * Lightweight markdown-to-HTML renderer for assistant messages.
+   * Supports: headings, bold, italic, inline code, code blocks,
+   * unordered/ordered lists, links, blockquotes, horizontal rules, paragraphs.
+   */
+  function renderMarkdown(text) {
+    if (!text) return "";
+
+    // Escape HTML first to prevent XSS
+    let html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // Code blocks (``` ... ```)
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, function (_m, _lang, code) {
+      return '<pre><code>' + code.trim() + '</code></pre>';
+    });
+
+    // Split into lines for block-level processing
+    const lines = html.split('\n');
+    const result = [];
+    let inList = false;
+    let listType = '';
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Skip empty lines (close any open list)
+      if (!line.trim()) {
+        if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+        i++;
+        continue;
+      }
+
+      // Headings
+      const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+      if (headingMatch) {
+        if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+        const level = headingMatch[1].length;
+        result.push('<h' + level + '>' + inlineFormat(headingMatch[2]) + '</h' + level + '>');
+        i++;
+        continue;
+      }
+
+      // Horizontal rule
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+        if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+        result.push('<hr>');
+        i++;
+        continue;
+      }
+
+      // Blockquote
+      if (line.match(/^&gt;\s?(.*)$/)) {
+        if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+        const quoteText = line.replace(/^&gt;\s?/, '');
+        result.push('<blockquote>' + inlineFormat(quoteText) + '</blockquote>');
+        i++;
+        continue;
+      }
+
+      // Unordered list item
+      const ulMatch = line.match(/^[\s]*[-*+]\s+(.+)$/);
+      if (ulMatch) {
+        if (!inList || listType !== 'ul') {
+          if (inList) result.push(listType === 'ul' ? '</ul>' : '</ol>');
+          result.push('<ul>');
+          inList = true;
+          listType = 'ul';
+        }
+        result.push('<li>' + inlineFormat(ulMatch[1]) + '</li>');
+        i++;
+        continue;
+      }
+
+      // Ordered list item
+      const olMatch = line.match(/^[\s]*\d+[.)]\s+(.+)$/);
+      if (olMatch) {
+        if (!inList || listType !== 'ol') {
+          if (inList) result.push(listType === 'ul' ? '</ul>' : '</ol>');
+          result.push('<ol>');
+          inList = true;
+          listType = 'ol';
+        }
+        result.push('<li>' + inlineFormat(olMatch[1]) + '</li>');
+        i++;
+        continue;
+      }
+
+      // Regular paragraph
+      if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+      result.push('<p>' + inlineFormat(line) + '</p>');
+      i++;
+    }
+
+    if (inList) result.push(listType === 'ul' ? '</ul>' : '</ol>');
+    return result.join('');
+  }
+
+  /** Applies inline formatting: bold, italic, code, links */
+  function inlineFormat(text) {
+    return text
+      // Inline code (must come before bold/italic to avoid conflicts)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Bold + italic
+      .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // Italic
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      // Links [text](url)
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+
   // ── DOM Helpers ───────────────────────────────────────────────────────────
 
   function appendMessage(role, text) {
     const container = shadowRoot.getElementById("foji-messages");
     const el = document.createElement("div");
     el.className = `foji-msg ${role}`;
-    el.textContent = text;
+    if (role === "assistant" && text) {
+      el.innerHTML = renderMarkdown(text);
+    } else {
+      el.textContent = text;
+    }
     container.appendChild(el);
     scrollToBottom();
     return el;

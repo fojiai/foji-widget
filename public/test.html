@@ -29,30 +29,43 @@
       script.async = true;
       document.body.appendChild(script);
 
-      // Auto-open the chat after widget loads, and hide the launcher
-      script.onload = function () {
-        setTimeout(function () {
-          const host = document.getElementById("foji-widget-host");
-          if (!host || !host.shadowRoot) return;
-          const launcher = host.shadowRoot.getElementById("foji-launcher");
-          const win = host.shadowRoot.getElementById("foji-window");
-          if (launcher) launcher.style.display = "none";
-          if (win) {
-            win.classList.remove("closed");
-            win.style.position = "relative";
-            win.style.bottom = "auto";
-            win.style.left = "auto";
-            win.style.right = "auto";
-            win.style.width = "100%";
-            win.style.maxHeight = "100vh";
-            win.style.height = "100vh";
-            win.style.borderRadius = "0";
-            win.style.boxShadow = "none";
-          }
-          // Trigger the open greeting
-          if (launcher) launcher.click();
-        }, 500);
-      };
+      // Poll until the widget host is mounted, then expand it to fill the iframe
+      function tryExpand() {
+        const host = document.getElementById("foji-widget-host");
+        if (!host || !host.shadowRoot) {
+          setTimeout(tryExpand, 100);
+          return;
+        }
+
+        const sr = host.shadowRoot;
+        const launcher = sr.getElementById("foji-launcher");
+        const win = sr.getElementById("foji-window");
+
+        if (!win) {
+          setTimeout(tryExpand, 100);
+          return;
+        }
+
+        // Hide the floating launcher button
+        if (launcher) launcher.style.display = "none";
+
+        // Expand the chat window to fill the entire iframe
+        win.classList.remove("closed");
+        win.style.position = "relative";
+        win.style.bottom = "auto";
+        win.style.left = "auto";
+        win.style.right = "auto";
+        win.style.width = "100%";
+        win.style.maxHeight = "100vh";
+        win.style.height = "100vh";
+        win.style.borderRadius = "0";
+        win.style.boxShadow = "none";
+
+        // Trigger the open() logic to show the greeting message
+        if (launcher) launcher.click();
+      }
+
+      tryExpand();
     })();
   </script>
 </body>
