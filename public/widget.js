@@ -55,6 +55,18 @@
     sessionStorage.setItem(SESSION_KEY, id);
   }
 
+  // ── Session lead capture ───────────────────────────────────────────────────
+
+  const LEAD_KEY = `foji_lead_${AGENT_TOKEN}`;
+
+  function hasSubmittedLead() {
+    return sessionStorage.getItem(LEAD_KEY) === "1";
+  }
+
+  function markLeadSubmitted() {
+    sessionStorage.setItem(LEAD_KEY, "1");
+  }
+
   // ── State ─────────────────────────────────────────────────────────────────
 
   let isOpen = false;
@@ -216,6 +228,18 @@
     #foji-powered a { color: #aaa; text-decoration: none; }
     #foji-powered a:hover { color: var(--foji-primary, ${primary}); }
 
+    #foji-handoff-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid #e4e4e7;
+      border-radius: 20px; padding: 5px 12px;
+      font-size: 12px; color: #555; cursor: pointer;
+      font-family: inherit; transition: border-color 0.15s, color 0.15s;
+      margin: 0 14px 8px; align-self: flex-start;
+    }
+    #foji-handoff-btn:hover { border-color: var(--foji-primary, ${primary}); color: var(--foji-primary, ${primary}); }
+    #foji-handoff-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+    #foji-handoff-btn.hidden { display: none; }
+
     .foji-starters {
       display: flex; flex-wrap: wrap; gap: 6px;
       align-self: flex-start; max-width: 95%;
@@ -234,6 +258,137 @@
 
     @media (max-width: 420px) {
       #foji-window { width: calc(100vw - 24px); ${pos}: 12px; }
+    }
+
+    #foji-lead-form {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #fafafa;
+      border-bottom: 1px solid #e4e4e7;
+    }
+    #foji-lead-form p {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .foji-lead-input {
+      width: 100%;
+      border: 1px solid #e4e4e7;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .foji-lead-input:focus { border-color: var(--foji-primary, ${primary}); }
+    #foji-lead-submit {
+      padding: 9px 16px;
+      background: var(--foji-primary, ${primary});
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    #foji-lead-submit:hover { opacity: 0.9; }
+    #foji-lead-skip {
+      background: none;
+      border: none;
+      font-size: 12px;
+      color: #aaa;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+      align-self: center;
+    }
+    #foji-lead-skip:hover { color: #666; }
+
+    /* ── Calendar card ───────────────────────────────────────────────────── */
+    .foji-calendar-card {
+      background: var(--foji-bg, #fff);
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .dark .foji-calendar-card {
+      background: #1f2937;
+      border-color: #374151;
+    }
+    .foji-calendar-card h4 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: inherit;
+    }
+    .foji-slots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .foji-slot-btn {
+      padding: 6px 12px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 20px;
+      background: transparent;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      color: inherit;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .foji-slot-btn:hover { border-color: var(--foji-primary, #FF2D2D); }
+    .foji-slot-btn.selected {
+      border-color: var(--foji-primary, #FF2D2D);
+      background: var(--foji-primary, #FF2D2D);
+      color: #fff;
+    }
+    .foji-calendar-form {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .foji-calendar-form.visible { display: flex; }
+    .foji-calendar-form input {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      background: transparent;
+      color: inherit;
+      outline: none;
+    }
+    .foji-calendar-form input:focus { border-color: var(--foji-primary, #FF2D2D); }
+    .foji-book-btn {
+      padding: 9px 16px;
+      background: var(--foji-primary, #FF2D2D);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .foji-book-btn:hover { opacity: 0.9; }
+    .foji-book-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .foji-calendar-msg {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
     }
   `;
   }
@@ -280,6 +435,8 @@
     style.textContent = generateCSS();
     shadowRoot.appendChild(style);
 
+    const HANDOFF_ICON = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>`;
+
     shadowRoot.innerHTML += `
       <button id="foji-launcher" aria-label="Open chat">${CHAT_ICON}</button>
 
@@ -290,6 +447,9 @@
           <button id="foji-close" aria-label="Close">&times;</button>
         </div>
         <div id="foji-messages" role="log" aria-live="polite"></div>
+        <button id="foji-handoff-btn" class="hidden" aria-label="Talk to a human">
+          ${HANDOFF_ICON} <span id="foji-handoff-label">Talk to a human</span>
+        </button>
         <div id="foji-input-area">
           <textarea
             id="foji-input"
@@ -345,11 +505,13 @@
     const closeBtn = shadowRoot.getElementById("foji-close");
     const input = shadowRoot.getElementById("foji-input");
     const sendBtn = shadowRoot.getElementById("foji-send");
+    const handoffBtn = shadowRoot.getElementById("foji-handoff-btn");
 
     launcher.addEventListener("click", () => toggle());
     closeBtn.addEventListener("click", () => close());
 
     sendBtn.addEventListener("click", () => sendMessage());
+    handoffBtn.addEventListener("click", () => requestHandoff());
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -384,34 +546,172 @@
 
     // Show greeting on first open only
     if (messages.length === 0) {
-      // Use custom welcome message if set, otherwise language-based greeting
-      const welcomeMsg = agentInfo?.welcome_message;
-      let greeting;
-      if (welcomeMsg) {
-        greeting = welcomeMsg;
-      } else {
-        const name = agentInfo?.name || title;
-        const greetings = {
-          "PtBr": `Ol\u00e1! Sou ${name}. Como posso ajudar?`,
-          "Es": `\u00a1Hola! Soy ${name}. \u00bfC\u00f3mo puedo ayudarte?`,
-        };
-        const lang = agentInfo?.agent_language || "En";
-        greeting = greetings[lang] || `Hi! I'm ${name}. How can I help you today?`;
+      // Show lead capture form before greeting if enabled and not yet submitted
+      if (agentInfo?.lead_capture_enabled && !hasSubmittedLead()) {
+        renderLeadForm();
+        return;
       }
-      appendMessage("assistant", greeting);
-      messages.push({ role: "assistant", content: greeting });
 
-      // Show conversation starters if available
-      const starters = agentInfo?.conversation_starters;
-      if (Array.isArray(starters) && starters.length > 0) {
-        renderStarters(starters);
-      }
+      showGreetingAndStarters();
+    }
+  }
+
+  function updateHandoffButton() {
+    const btn = shadowRoot.getElementById("foji-handoff-btn");
+    if (!btn) return;
+    if (!agentInfo?.handoff_enabled) { btn.classList.add("hidden"); return; }
+
+    btn.classList.remove("hidden");
+    const lang = agentInfo?.agent_language || "En";
+    const label = lang === "PtBr" ? "Falar com um humano" : lang === "Es" ? "Hablar con humano" : "Talk to a human";
+    const labelEl = shadowRoot.getElementById("foji-handoff-label");
+    if (labelEl) labelEl.textContent = label;
+  }
+
+  function showGreetingAndStarters() {
+    // Use custom welcome message if set, otherwise language-based greeting
+    const welcomeMsg = agentInfo?.welcome_message;
+    let greeting;
+    if (welcomeMsg) {
+      greeting = welcomeMsg;
+    } else {
+      const name = agentInfo?.name || title;
+      const greetings = {
+        "PtBr": `Ol\u00e1! Sou ${name}. Como posso ajudar?`,
+        "Es": `\u00a1Hola! Soy ${name}. \u00bfC\u00f3mo puedo ayudarte?`,
+      };
+      const lang = agentInfo?.agent_language || "En";
+      greeting = greetings[lang] || `Hi! I'm ${name}. How can I help you today?`;
+    }
+    appendMessage("assistant", greeting);
+    messages.push({ role: "assistant", content: greeting });
+
+    // Show conversation starters if available
+    const starters = agentInfo?.conversation_starters;
+    if (Array.isArray(starters) && starters.length > 0) {
+      renderStarters(starters);
+    }
+
+    // Show/hide human handoff button based on agent config
+    updateHandoffButton();
+  }
+
+  async function requestHandoff() {
+    const btn = shadowRoot.getElementById("foji-handoff-btn");
+    if (btn) btn.disabled = true;
+
+    const lang = agentInfo?.agent_language || "En";
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content || null;
+
+    // Optimistic UI — show confirmation message immediately
+    const confirmMsg = agentInfo?.handoff_message || (
+      lang === "PtBr" ? "Sua solicitação foi registrada! Nossa equipe entrará em contato em breve." :
+      lang === "Es" ? "¡Solicitud registrada! Nuestro equipo se pondrá en contacto pronto." :
+      "Request registered! Our team will reach out to you shortly."
+    );
+    appendMessage("assistant", confirmMsg);
+    messages.push({ role: "assistant", content: confirmMsg });
+    if (btn) btn.classList.add("hidden"); // hide after use
+
+    try {
+      const sessionId = getSessionId() || `pre_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      setSessionId(sessionId);
+
+      await fetch(`${API_URL}/api/v1/widget/handoff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Agent-Token": AGENT_TOKEN,
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          user_message: lastUserMsg,
+        }),
+      });
+    } catch (err) {
+      console.warn("[Foji Widget] Handoff request failed:", err);
     }
   }
 
   function close() {
     isOpen = false;
     shadowRoot.getElementById("foji-window").classList.add("closed");
+  }
+
+  // ── Lead Capture Form ─────────────────────────────────────────────────────
+
+  function renderLeadForm() {
+    const lang = agentInfo?.agent_language || "En";
+    const isPtBr = lang === "PtBr";
+    const isEs = lang === "Es";
+
+    const promptText = agentInfo?.lead_capture_prompt || (
+      isPtBr ? "Para melhor te atender, deixe seus contatos (opcionais):" :
+      isEs ? "Para atenderte mejor, d\u00e9janos tus datos (opcionales):" :
+      "Leave your contact info so we can follow up (optional):"
+    );
+    const namePlaceholder = isPtBr ? "Nome" : isEs ? "Nombre" : "Name";
+    const emailPlaceholder = "E-mail";
+    const phonePlaceholder = isPtBr ? "Telefone" : isEs ? "Tel\u00e9fono" : "Phone";
+    const submitLabel = isPtBr ? "Iniciar conversa" : isEs ? "Iniciar conversaci\u00f3n" : "Start chat";
+    const skipLabel = isPtBr ? "Pular" : isEs ? "Omitir" : "Skip";
+
+    // Inject form above the message list
+    const win = shadowRoot.getElementById("foji-window");
+    const msgArea = shadowRoot.getElementById("foji-messages");
+
+    const form = document.createElement("div");
+    form.id = "foji-lead-form";
+    form.innerHTML = `
+      <p>${escapeHtml(promptText)}</p>
+      <input class="foji-lead-input" id="foji-lead-name" type="text" placeholder="${escapeHtml(namePlaceholder)}" autocomplete="name" />
+      <input class="foji-lead-input" id="foji-lead-email" type="email" placeholder="${escapeHtml(emailPlaceholder)}" autocomplete="email" />
+      <input class="foji-lead-input" id="foji-lead-phone" type="tel" placeholder="${escapeHtml(phonePlaceholder)}" autocomplete="tel" />
+      <button id="foji-lead-submit">${escapeHtml(submitLabel)}</button>
+      <button id="foji-lead-skip">${escapeHtml(skipLabel)}</button>
+    `;
+
+    win.insertBefore(form, msgArea);
+
+    shadowRoot.getElementById("foji-lead-submit").addEventListener("click", async () => {
+      const name = shadowRoot.getElementById("foji-lead-name")?.value.trim();
+      const email = shadowRoot.getElementById("foji-lead-email")?.value.trim();
+      const phone = shadowRoot.getElementById("foji-lead-phone")?.value.trim();
+      await submitLead(name, email, phone);
+    });
+
+    shadowRoot.getElementById("foji-lead-skip").addEventListener("click", () => {
+      removeLeadForm();
+      markLeadSubmitted();
+      showGreetingAndStarters();
+    });
+  }
+
+  async function submitLead(name, email, phone) {
+    const sessionId = getSessionId() || `pre_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    setSessionId(sessionId);
+
+    try {
+      await fetch(`${API_URL}/api/v1/widget/lead`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Agent-Token": AGENT_TOKEN,
+        },
+        body: JSON.stringify({ session_id: sessionId, name: name || null, email: email || null, phone: phone || null }),
+      });
+    } catch {
+      // Silently fail — don't block the chat if lead capture fails
+    }
+
+    removeLeadForm();
+    markLeadSubmitted();
+    showGreetingAndStarters();
+  }
+
+  function removeLeadForm() {
+    const form = shadowRoot.getElementById("foji-lead-form");
+    if (form) form.remove();
   }
 
   // ── Conversation Starters ─────────────────────────────────────────────────
@@ -445,6 +745,139 @@
   function removeStarters() {
     const el = shadowRoot.getElementById("foji-starters");
     if (el) el.remove();
+  }
+
+  // ── Google Calendar Card ──────────────────────────────────────────────────
+
+  function formatSlot(slot) {
+    const start = new Date(slot.start);
+    const end = new Date(slot.end);
+    const dateStr = start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const startTime = start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const endTime = end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `${dateStr} · ${startTime}–${endTime}`;
+  }
+
+  function renderCalendarCard(suggestion) {
+    const msgArea = shadowRoot.getElementById("foji-messages");
+    if (!msgArea) return;
+
+    const slots = suggestion.slots || [];
+    if (!slots.length) return;
+
+    const card = document.createElement("div");
+    card.className = "foji-calendar-card";
+
+    const heading = document.createElement("h4");
+    heading.textContent = suggestion.title || "Choose a time";
+    card.appendChild(heading);
+
+    const slotsDiv = document.createElement("div");
+    slotsDiv.className = "foji-slots";
+
+    let selectedSlot = null;
+
+    slots.forEach((slot) => {
+      const btn = document.createElement("button");
+      btn.className = "foji-slot-btn";
+      btn.textContent = formatSlot(slot);
+      btn.addEventListener("click", () => {
+        slotsDiv.querySelectorAll(".foji-slot-btn").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        selectedSlot = slot;
+        form.classList.add("visible");
+      });
+      slotsDiv.appendChild(btn);
+    });
+
+    card.appendChild(slotsDiv);
+
+    const form = document.createElement("div");
+    form.className = "foji-calendar-form";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.placeholder = "Your name";
+    nameInput.autocomplete = "name";
+
+    const emailInput = document.createElement("input");
+    emailInput.type = "email";
+    emailInput.placeholder = "Your email";
+    emailInput.autocomplete = "email";
+
+    const notesInput = document.createElement("input");
+    notesInput.type = "text";
+    notesInput.placeholder = "Notes (optional)";
+
+    const bookBtn = document.createElement("button");
+    bookBtn.className = "foji-book-btn";
+    bookBtn.textContent = "Confirm booking";
+
+    const msgEl = document.createElement("p");
+    msgEl.className = "foji-calendar-msg";
+
+    bookBtn.addEventListener("click", async () => {
+      if (!selectedSlot) return;
+      const name = nameInput.value.trim();
+      const email = emailInput.value.trim();
+      if (!name || !email) {
+        msgEl.textContent = "Please fill in your name and email.";
+        return;
+      }
+      await submitBooking(selectedSlot, name, email, notesInput.value.trim(), card);
+    });
+
+    form.appendChild(nameInput);
+    form.appendChild(emailInput);
+    form.appendChild(notesInput);
+    form.appendChild(bookBtn);
+    form.appendChild(msgEl);
+    card.appendChild(form);
+
+    msgArea.appendChild(card);
+    scrollToBottom();
+  }
+
+  async function submitBooking(slot, name, email, notes, cardEl) {
+    const bookBtn = cardEl.querySelector(".foji-book-btn");
+    const msgEl = cardEl.querySelector(".foji-calendar-msg");
+    if (bookBtn) { bookBtn.disabled = true; bookBtn.textContent = "Booking…"; }
+
+    try {
+      const res = await fetch(`${API_URL}/api/v1/calendar/book`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_token: AGENT_TOKEN,
+          attendee_name: name,
+          attendee_email: email,
+          slot_start: slot.start,
+          slot_end: slot.end,
+          notes: notes || undefined,
+        }),
+      });
+
+      if (res.status === 409) {
+        if (msgEl) msgEl.textContent = "That slot was just taken. Please choose another time.";
+        if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = "Confirm booking"; }
+        return;
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (msgEl) msgEl.textContent = err.detail || "Booking failed. Please try again.";
+        if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = "Confirm booking"; }
+        return;
+      }
+
+      const data = await res.json();
+      cardEl.remove();
+      appendMessage("assistant", data.message || "Your appointment is confirmed! Check your email for the invite.");
+      scrollToBottom();
+    } catch {
+      if (msgEl) msgEl.textContent = "Network error. Please try again.";
+      if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = "Confirm booking"; }
+    }
   }
 
   // ── Messaging ─────────────────────────────────────────────────────────────
@@ -527,9 +960,19 @@
             scrollToBottom();
           }
 
+          if (parsed.replace_last) {
+            fullText = parsed.replace_last;
+            msgEl.innerHTML = renderMarkdown(fullText);
+            scrollToBottom();
+          }
+
           if (parsed.done && parsed.session_id) {
             // Persist the server-assigned session ID for conversation continuity
             setSessionId(parsed.session_id);
+          }
+
+          if (parsed.calendar_suggestion && agentInfo?.calendar_enabled) {
+            renderCalendarCard(parsed.calendar_suggestion);
           }
 
           if (parsed.error) {
