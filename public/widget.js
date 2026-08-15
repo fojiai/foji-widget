@@ -72,6 +72,11 @@
   let isOpen = false;
   let isStreaming = false;
   let messages = []; // { role: "user"|"assistant", content: string }
+
+  // The handoff button stays hidden until the visitor has actually tried the
+  // agent this many times — offering a human immediately means most people
+  // take it without ever using the bot.
+  const HANDOFF_MIN_USER_MESSAGES = 3;
   let shadowRoot = null;
   let agentInfo = null; // cached from GET /api/v1/widget/agent-info
   let agentInfoPromise = null; // resolved when fetch completes
@@ -561,6 +566,9 @@
     if (!btn) return;
     if (!agentInfo?.handoff_enabled) { btn.classList.add("hidden"); return; }
 
+    const userTurns = messages.filter((m) => m.role === "user").length;
+    if (userTurns < HANDOFF_MIN_USER_MESSAGES) { btn.classList.add("hidden"); return; }
+
     btn.classList.remove("hidden");
     const lang = agentInfo?.agent_language || "En";
     const label = lang === "PtBr" ? "Falar com um humano" : lang === "Es" ? "Hablar con humano" : "Talk to a human";
@@ -896,6 +904,7 @@
 
     appendMessage("user", text);
     messages.push({ role: "user", content: text });
+    updateHandoffButton(); // may cross the threshold on this turn
 
     const thinkingEl = appendTypingIndicator();
     setStreaming(true);
