@@ -706,8 +706,9 @@
     const sessionId = getSessionId() || `pre_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     setSessionId(sessionId);
 
+    let captured = false;
     try {
-      await fetch(`${API_URL}/api/v1/widget/lead`, {
+      const res = await fetch(`${API_URL}/api/v1/widget/lead`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -715,12 +716,22 @@
         },
         body: JSON.stringify({ session_id: sessionId, name: name || null, email: email || null, phone: phone || null }),
       });
-    } catch {
-      // Silently fail — don't block the chat if lead capture fails
+
+      // fetch only rejects on network failure, so a 4xx/5xx used to sail through
+      // here unnoticed: the visitor saw success and the lead was never stored.
+      captured = res.ok;
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        console.warn(`[Foji Widget] Lead capture failed (${res.status}):`, detail.slice(0, 300));
+      }
+    } catch (err) {
+      console.warn("[Foji Widget] Lead capture request failed:", err);
     }
 
     removeLeadForm();
-    markLeadSubmitted();
+    // Only remember it as done when it actually was — otherwise a transient
+    // failure would silently lose the contact for the rest of the session.
+    if (captured) markLeadSubmitted();
     showGreetingAndStarters();
   }
 
