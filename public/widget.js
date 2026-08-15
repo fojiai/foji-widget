@@ -202,7 +202,14 @@
     }
     .foji-dots span:nth-child(2) { animation-delay: 0.2s; }
     .foji-dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes foji-bounce { 0%,80%,100% { transform: scale(0.7); } 40% { transform: scale(1); } }
+    @keyframes foji-bounce {
+      0%, 80%, 100% { transform: translateY(0) scale(0.7); opacity: 0.45; }
+      40%           { transform: translateY(-3px) scale(1); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .foji-dots span { animation: foji-fade 1.4s infinite ease-in-out; }
+      @keyframes foji-fade { 0%,80%,100% { opacity: 0.45; } 40% { opacity: 1; } }
+    }
 
     #foji-input-area {
       display: flex; gap: 8px; padding: 12px 14px;
@@ -943,9 +950,18 @@
     let fullText = "";
     let buffer = "";
 
-    // Replace the typing indicator with an empty assistant bubble
-    removeElement(thinkingEl);
-    const msgEl = appendMessage("assistant", "");
+    // Keep the typing dots up until the first token actually arrives. Swapping
+    // to an empty bubble here — as soon as the response headers land — left the
+    // visitor staring at a blank bubble for the whole model latency, which is
+    // precisely the part where they need to see that something is happening.
+    let msgEl = null;
+    function bubble() {
+      if (!msgEl) {
+        removeElement(thinkingEl);
+        msgEl = appendMessage("assistant", "");
+      }
+      return msgEl;
+    }
 
     while (true) {
       const { done, value } = await reader.read();
@@ -965,13 +981,13 @@
 
           if (parsed.chunk) {
             fullText += parsed.chunk;
-            msgEl.innerHTML = renderMarkdown(fullText);
+            bubble().innerHTML = renderMarkdown(fullText);
             scrollToBottom();
           }
 
           if (parsed.replace_last) {
             fullText = parsed.replace_last;
-            msgEl.innerHTML = renderMarkdown(fullText);
+            bubble().innerHTML = renderMarkdown(fullText);
             scrollToBottom();
           }
 
@@ -993,6 +1009,9 @@
         }
       }
     }
+
+    // A stream that produced nothing must still clear the dots.
+    removeElement(thinkingEl);
 
     return fullText;
   }
