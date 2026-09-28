@@ -104,6 +104,10 @@
       bookingFailed: "Não consegui agendar agora. Pode tentar de novo?",
       bookingConfirmed: "Agendado! ✅ Você vai receber o convite por e-mail.",
       networkError: "Parece que a conexão caiu. Pode tentar de novo?",
+      attachPhoto: "Enviar foto",
+      removePhoto: "Remover",
+      photoTooBig: "Essa foto ficou grande demais pra enviar por aqui 😅 Pode tentar outra?",
+      photoUnsupported: "Não consegui abrir essa foto 😅 Pode tentar outra imagem?",
     },
     Es: {
       greeting: "¡Hola! \u{1F44B} ¿En qué te puedo ayudar?",
@@ -125,6 +129,10 @@
       bookingFailed: "No pude agendar ahora. ¿Lo intentas de nuevo?",
       bookingConfirmed: "¡Listo! ✅ Te llegará la invitación por correo.",
       networkError: "Parece que se cayó la conexión. ¿Lo intentas de nuevo?",
+      attachPhoto: "Enviar foto",
+      removePhoto: "Quitar",
+      photoTooBig: "Esa foto es demasiado grande para enviarla por aquí 😅 ¿Probamos con otra?",
+      photoUnsupported: "No pude abrir esa foto 😅 ¿Puedes probar con otra imagen?",
     },
     En: {
       greeting: "Hi there! \u{1F44B} How can I help?",
@@ -146,6 +154,10 @@
       bookingFailed: "I couldn't book that just now. Could you try again?",
       bookingConfirmed: "You're booked! ✅ Check your email for the invite.",
       networkError: "Looks like the connection dropped. Could you try again?",
+      attachPhoto: "Send a photo",
+      removePhoto: "Remove",
+      photoTooBig: "That photo is too large to send here 😅 Could you try another one?",
+      photoUnsupported: "I couldn't open that photo 😅 Could you try a different image?",
     },
   };
 
@@ -308,6 +320,32 @@
     #foji-send:active { transform: scale(0.92); }
     #foji-send:disabled { opacity: 0.5; cursor: not-allowed; }
     #foji-send svg { width: 18px; height: 18px; fill: white; }
+
+    #foji-attach {
+      width: 34px; height: 40px; flex-shrink: 0; border: none; background: transparent;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      color: #71717a; border-radius: 50%; padding: 0; transition: color 0.15s;
+    }
+    #foji-attach:hover { color: var(--foji-primary, ${primary}); }
+    #foji-attach:disabled { opacity: 0.5; cursor: not-allowed; }
+    #foji-attach svg { width: 22px; height: 22px; fill: currentColor; }
+    #foji-attachment {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px 0;
+      background: #fff; border-top: 1px solid #e4e4e7;
+    }
+    #foji-attachment.hidden { display: none; }
+    #foji-attachment:not(.hidden) + #foji-input-area { border-top: none; }
+    #foji-attachment img {
+      width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid #e4e4e7;
+    }
+    #foji-attachment button {
+      border: none; background: #f4f4f5; color: #52525b; border-radius: 999px;
+      font-size: 12px; padding: 5px 10px; cursor: pointer; font-family: inherit;
+    }
+    .foji-msg img.foji-photo {
+      display: block; max-width: 100%; max-height: 220px; border-radius: 10px;
+    }
+    .foji-msg img.foji-photo + span { display: block; margin-top: 6px; }
 
     #foji-powered {
       text-align: center; font-size: 11px; color: #aaa;
@@ -501,6 +539,90 @@
     // Update input placeholder
     const input = shadowRoot.getElementById("foji-input");
     if (input) input.placeholder = placeholder;
+
+    // The photo controls render before the agent's language is known.
+    const attach = shadowRoot.getElementById("foji-attach");
+    if (attach) { attach.setAttribute("aria-label", tr("attachPhoto")); attach.title = tr("attachPhoto"); }
+    const remove = shadowRoot.getElementById("foji-attachment-remove");
+    if (remove) remove.textContent = tr("removePhoto");
+  }
+
+  // ── Photos ────────────────────────────────────────────────────────────────
+
+  // Phone photos are often 5–12 MB. Downsize in the browser so sending is fast
+  // and the model gets a sensible size; 1600px keeps text in screenshots legible.
+  const PHOTO_MAX_EDGE = 1600;
+  const PHOTO_QUALITY = 0.85;
+  const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+  let pendingPhoto = null; // { base64, mime, dataUrl } until the next send
+
+  function preparePhoto(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type || "")) return reject(new Error("unsupported"));
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.max(1, Math.round(img.naturalWidth * scale));
+          const h = Math.max(1, Math.round(img.naturalHeight * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#fff"; // transparent PNGs become white, not black, as JPEG
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+          const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+          if (base64.length * 0.75 > PHOTO_MAX_BYTES) return reject(new Error("too_big"));
+          resolve({ base64, mime: "image/jpeg", dataUrl });
+        } catch (e) {
+          reject(new Error("unsupported"));
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unsupported")); };
+      img.src = url;
+    });
+  }
+
+  function setPendingPhoto(photo) {
+    pendingPhoto = photo;
+    const row = shadowRoot.getElementById("foji-attachment");
+    const preview = shadowRoot.getElementById("foji-attachment-img");
+    if (!row || !preview) return;
+    if (photo) {
+      preview.src = photo.dataUrl;
+      row.classList.remove("hidden");
+    } else {
+      preview.removeAttribute("src");
+      row.classList.add("hidden");
+    }
+  }
+
+  /** The visitor's own bubble, with the photo above the text. Built with DOM
+   *  APIs, never innerHTML — the text is whatever they typed. */
+  function appendUserMessage(text, photoDataUrl) {
+    const container = shadowRoot.getElementById("foji-messages");
+    const el = document.createElement("div");
+    el.className = "foji-msg user";
+    if (photoDataUrl) {
+      const img = document.createElement("img");
+      img.className = "foji-photo";
+      img.alt = "";
+      img.src = photoDataUrl;
+      img.addEventListener("load", scrollToBottom);
+      el.appendChild(img);
+    }
+    if (text) {
+      const span = document.createElement("span");
+      span.textContent = text;
+      el.appendChild(span);
+    }
+    container.appendChild(el);
+    scrollToBottom();
+    return el;
   }
 
   // ── HTML ──────────────────────────────────────────────────────────────────
@@ -508,6 +630,7 @@
   const CHAT_ICON = `<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>`;
   const CLOSE_ICON = `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="white"/></svg>`;
   const SEND_ICON = `<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
+  const PHOTO_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
   const BOT_ICON = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>`;
 
   // ── Mount ─────────────────────────────────────────────────────────────────
@@ -538,7 +661,13 @@
         <button id="foji-handoff-btn" class="hidden" aria-label="Talk to a human">
           ${HANDOFF_ICON} <span id="foji-handoff-label">Talk to a human</span>
         </button>
+        <div id="foji-attachment" class="hidden">
+          <img id="foji-attachment-img" alt="" />
+          <button id="foji-attachment-remove" type="button">${escapeHtml(tr("removePhoto"))}</button>
+        </div>
         <div id="foji-input-area">
+          <button id="foji-attach" type="button" aria-label="${escapeHtml(tr("attachPhoto"))}" title="${escapeHtml(tr("attachPhoto"))}">${PHOTO_ICON}</button>
+          <input id="foji-file" type="file" accept="image/*" hidden />
           <textarea
             id="foji-input"
             rows="1"
@@ -605,6 +734,23 @@
 
     sendBtn.addEventListener("click", () => sendMessage());
     handoffBtn.addEventListener("click", () => requestHandoff());
+
+    const attachBtn = shadowRoot.getElementById("foji-attach");
+    const fileInput = shadowRoot.getElementById("foji-file");
+    const removeBtn = shadowRoot.getElementById("foji-attachment-remove");
+    attachBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = ""; // picking the same file again should still fire
+      if (!file) return;
+      try {
+        setPendingPhoto(await preparePhoto(file));
+        input.focus();
+      } catch (err) {
+        appendMessage("assistant", tr(err && err.message === "too_big" ? "photoTooBig" : "photoUnsupported"));
+      }
+    });
+    removeBtn.addEventListener("click", () => setPendingPhoto(null));
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -995,23 +1141,25 @@
     if (isStreaming) return;
     const input = shadowRoot.getElementById("foji-input");
     const text = input.value.trim();
-    if (!text) return;
+    const photo = pendingPhoto;
+    if (!text && !photo) return; // a photo alone is a message too
 
     input.value = "";
     input.style.height = "auto";
+    setPendingPhoto(null);
 
     // Remove starters on first user message
     removeStarters();
 
-    appendMessage("user", text);
-    messages.push({ role: "user", content: text });
+    appendUserMessage(text, photo && photo.dataUrl);
+    messages.push({ role: "user", content: photo ? `[imagem] ${text}`.trim() : text });
     updateHandoffButton(); // may cross the threshold on this turn
 
     const thinkingEl = appendTypingIndicator();
     setStreaming(true);
 
     try {
-      const reply = await streamChat(text, thinkingEl);
+      const reply = await streamChat(text, thinkingEl, photo);
       messages.push({ role: "assistant", content: reply });
     } catch (err) {
       removeElement(thinkingEl);
@@ -1028,16 +1176,21 @@
     }
   }
 
-  async function streamChat(userMessage, thinkingEl) {
+  async function streamChat(userMessage, thinkingEl, photo) {
     const sessionId = getSessionId();
+    const payload = {
+      agent_token: AGENT_TOKEN,
+      session_id: sessionId,   // null on first message — server assigns one
+      message: userMessage,
+    };
+    if (photo) {
+      payload.image_base64 = photo.base64;
+      payload.image_mime = photo.mime;
+    }
     const res = await fetch(`${API_URL}/api/v1/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agent_token: AGENT_TOKEN,
-        session_id: sessionId,   // null on first message — server assigns one
-        message: userMessage,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -1292,6 +1445,8 @@
     isStreaming = val;
     const btn = shadowRoot.getElementById("foji-send");
     if (btn) btn.disabled = val;
+    const attach = shadowRoot.getElementById("foji-attach");
+    if (attach) attach.disabled = val;
   }
 
   function escapeHtml(str) {
