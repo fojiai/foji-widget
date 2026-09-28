@@ -79,6 +79,82 @@
   const HANDOFF_MIN_USER_MESSAGES = 3;
   let shadowRoot = null;
   let agentInfo = null; // cached from GET /api/v1/widget/agent-info
+
+  // Everything the visitor can read, in the agent's language. Several of these
+  // used to be hard-coded English ("Sorry, something went wrong") on sites that
+  // are otherwise entirely in Portuguese.
+  const STRINGS = {
+    PtBr: {
+      greeting: "Oi! \u{1F44B} Como posso te ajudar?",
+      greetingCompany: "Oi! \u{1F44B} Aqui é da equipe {company} — como posso te ajudar?",
+      placeholder: "Digite sua mensagem…",
+      genericError: "Ops, tive um probleminha pra responder agora \u{1F605} Pode tentar de novo em alguns segundos?",
+      timeout: "Opa, demorei demais pra responder \u{1F605} Pode mandar de novo?",
+      limitReached: "No momento não consigo responder por aqui. Se puder, fale com a gente por outro canal \u{1F642}",
+      handoffDone: "Pronto! Já avisei a equipe — alguém vai falar com você em breve. \u{1F642}",
+      handoffFailed: "Não consegui chamar a equipe agora. Pode tentar de novo em instantes?",
+      chooseTime: "Escolha um horário",
+      yourName: "Seu nome",
+      yourEmail: "Seu e-mail",
+      notes: "Observações (opcional)",
+      confirmBooking: "Confirmar agendamento",
+      booking: "Agendando…",
+      fillNameEmail: "Preencha seu nome e e-mail, por favor.",
+      slotTaken: "Esse horário acabou de ser reservado. Pode escolher outro?",
+      bookingFailed: "Não consegui agendar agora. Pode tentar de novo?",
+      bookingConfirmed: "Agendado! ✅ Você vai receber o convite por e-mail.",
+      networkError: "Parece que a conexão caiu. Pode tentar de novo?",
+    },
+    Es: {
+      greeting: "¡Hola! \u{1F44B} ¿En qué te puedo ayudar?",
+      greetingCompany: "¡Hola! \u{1F44B} Te habla el equipo de {company} — ¿en qué te puedo ayudar?",
+      placeholder: "Escribe tu mensaje…",
+      genericError: "Uy, tuve un problemita para responder \u{1F605} ¿Puedes intentarlo de nuevo en unos segundos?",
+      timeout: "Ups, tardé demasiado en responder \u{1F605} ¿Me lo mandas de nuevo?",
+      limitReached: "En este momento no puedo responder por aquí. Si puedes, contáctanos por otro canal \u{1F642}",
+      handoffDone: "¡Listo! Ya avisé al equipo — alguien hablará contigo pronto. \u{1F642}",
+      handoffFailed: "No pude avisar al equipo ahora. ¿Lo intentas de nuevo en un momento?",
+      chooseTime: "Elige un horario",
+      yourName: "Tu nombre",
+      yourEmail: "Tu correo",
+      notes: "Notas (opcional)",
+      confirmBooking: "Confirmar cita",
+      booking: "Agendando…",
+      fillNameEmail: "Completa tu nombre y correo, por favor.",
+      slotTaken: "Ese horario acaba de reservarse. ¿Puedes elegir otro?",
+      bookingFailed: "No pude agendar ahora. ¿Lo intentas de nuevo?",
+      bookingConfirmed: "¡Listo! ✅ Te llegará la invitación por correo.",
+      networkError: "Parece que se cayó la conexión. ¿Lo intentas de nuevo?",
+    },
+    En: {
+      greeting: "Hi there! \u{1F44B} How can I help?",
+      greetingCompany: "Hi there! \u{1F44B} This is the {company} team — how can I help?",
+      placeholder: "Type a message…",
+      genericError: "Oops, I had a little trouble answering just now \u{1F605} Could you try again in a few seconds?",
+      timeout: "Sorry, that took me too long \u{1F605} Could you send it again?",
+      limitReached: "I can't reply here right now. If you can, please reach us through another channel \u{1F642}",
+      handoffDone: "Done! I've let the team know — someone will be with you shortly. \u{1F642}",
+      handoffFailed: "I couldn't reach the team just now. Could you try again in a moment?",
+      chooseTime: "Choose a time",
+      yourName: "Your name",
+      yourEmail: "Your email",
+      notes: "Notes (optional)",
+      confirmBooking: "Confirm booking",
+      booking: "Booking…",
+      fillNameEmail: "Please fill in your name and email.",
+      slotTaken: "That slot was just taken. Could you pick another time?",
+      bookingFailed: "I couldn't book that just now. Could you try again?",
+      bookingConfirmed: "You're booked! ✅ Check your email for the invite.",
+      networkError: "Looks like the connection dropped. Could you try again?",
+    },
+  };
+
+  function tr(key, vars) {
+    const lang = agentInfo?.agent_language || "PtBr";
+    let s = (STRINGS[lang] || STRINGS.PtBr)[key] ?? STRINGS.En[key] ?? key;
+    if (vars) for (const k in vars) s = s.replace(`{${k}}`, vars[k]);
+    return s;
+  }
   let agentInfoPromise = null; // resolved when fetch completes
 
   // ── Styles (CSS custom properties for dynamic theming) ────────────────────
@@ -498,8 +574,13 @@
 
         // Apply server-side widget customization overrides
         if (agentInfo.widget_primary_color) primary = agentInfo.widget_primary_color;
+        // Title: dashboard setting > embed attribute > the company's name.
+        // "Assistant" was the old fallback — exactly the word a visitor
+        // shouldn't see.
         if (agentInfo.widget_title) title = agentInfo.widget_title;
+        else if (!script?.getAttribute("data-title") && agentInfo.company_name) title = agentInfo.company_name;
         if (agentInfo.widget_placeholder) placeholder = agentInfo.widget_placeholder;
+        else if (!script?.getAttribute("data-placeholder")) placeholder = tr("placeholder");
         if (agentInfo.widget_position) position = agentInfo.widget_position;
 
         applyTheme();
@@ -590,13 +671,10 @@
     if (welcomeMsg) {
       greeting = welcomeMsg;
     } else {
-      const name = agentInfo?.name || title;
-      const greetings = {
-        "PtBr": `Ol\u00e1! Sou ${name}. Como posso ajudar?`,
-        "Es": `\u00a1Hola! Soy ${name}. \u00bfC\u00f3mo puedo ayudarte?`,
-      };
-      const lang = agentInfo?.agent_language || "En";
-      greeting = greetings[lang] || `Hi! I'm ${name}. How can I help you today?`;
+      // "Ol\u00e1! Sou {agent name}" introduced a bot by its product name. Say who
+      // the visitor is talking to \u2014 the company \u2014 the way a person would.
+      const company = agentInfo?.company_name;
+      greeting = company ? tr("greetingCompany", { company }) : tr("greeting");
     }
     appendMessage("assistant", greeting);
     messages.push({ role: "assistant", content: greeting });
@@ -615,24 +693,17 @@
     const btn = shadowRoot.getElementById("foji-handoff-btn");
     if (btn) btn.disabled = true;
 
-    const lang = agentInfo?.agent_language || "En";
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content || null;
 
-    // Optimistic UI — show confirmation message immediately
-    const confirmMsg = agentInfo?.handoff_message || (
-      lang === "PtBr" ? "Sua solicitação foi registrada! Nossa equipe entrará em contato em breve." :
-      lang === "Es" ? "¡Solicitud registrada! Nuestro equipo se pondrá en contacto pronto." :
-      "Request registered! Our team will reach out to you shortly."
-    );
-    appendMessage("assistant", confirmMsg);
-    messages.push({ role: "assistant", content: confirmMsg });
-    if (btn) btn.classList.add("hidden"); // hide after use
-
+    // Only confirm once the team has actually been notified. This used to say
+    // "our team will contact you" before the request went out, so a failure
+    // left the visitor waiting for someone who was never told.
+    let ok = false;
     try {
       const sessionId = getSessionId() || `pre_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       setSessionId(sessionId);
 
-      await fetch(`${API_URL}/api/v1/widget/handoff`, {
+      const res = await fetch(`${API_URL}/api/v1/widget/handoff`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -643,8 +714,20 @@
           user_message: lastUserMsg,
         }),
       });
+      ok = res.ok;
+      if (!ok) console.warn("[Foji Widget] Handoff request failed:", res.status);
     } catch (err) {
       console.warn("[Foji Widget] Handoff request failed:", err);
+    }
+
+    if (ok) {
+      const confirmMsg = agentInfo?.handoff_message || tr("handoffDone");
+      appendMessage("assistant", confirmMsg);
+      messages.push({ role: "assistant", content: confirmMsg });
+      if (btn) btn.classList.add("hidden"); // one request is enough
+    } else {
+      appendMessage("assistant", tr("handoffFailed"));
+      if (btn) btn.disabled = false; // let them try again
     }
   }
 
@@ -795,7 +878,7 @@
     card.className = "foji-calendar-card";
 
     const heading = document.createElement("h4");
-    heading.textContent = suggestion.title || "Choose a time";
+    heading.textContent = suggestion.title || tr("chooseTime");
     card.appendChild(heading);
 
     const slotsDiv = document.createElement("div");
@@ -823,21 +906,21 @@
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
-    nameInput.placeholder = "Your name";
+    nameInput.placeholder = tr("yourName");
     nameInput.autocomplete = "name";
 
     const emailInput = document.createElement("input");
     emailInput.type = "email";
-    emailInput.placeholder = "Your email";
+    emailInput.placeholder = tr("yourEmail");
     emailInput.autocomplete = "email";
 
     const notesInput = document.createElement("input");
     notesInput.type = "text";
-    notesInput.placeholder = "Notes (optional)";
+    notesInput.placeholder = tr("notes");
 
     const bookBtn = document.createElement("button");
     bookBtn.className = "foji-book-btn";
-    bookBtn.textContent = "Confirm booking";
+    bookBtn.textContent = tr("confirmBooking");
 
     const msgEl = document.createElement("p");
     msgEl.className = "foji-calendar-msg";
@@ -847,7 +930,7 @@
       const name = nameInput.value.trim();
       const email = emailInput.value.trim();
       if (!name || !email) {
-        msgEl.textContent = "Please fill in your name and email.";
+        msgEl.textContent = tr("fillNameEmail");
         return;
       }
       await submitBooking(selectedSlot, name, email, notesInput.value.trim(), card);
@@ -867,7 +950,7 @@
   async function submitBooking(slot, name, email, notes, cardEl) {
     const bookBtn = cardEl.querySelector(".foji-book-btn");
     const msgEl = cardEl.querySelector(".foji-calendar-msg");
-    if (bookBtn) { bookBtn.disabled = true; bookBtn.textContent = "Booking…"; }
+    if (bookBtn) { bookBtn.disabled = true; bookBtn.textContent = tr("booking"); }
 
     try {
       const res = await fetch(`${API_URL}/api/v1/calendar/book`, {
@@ -884,25 +967,25 @@
       });
 
       if (res.status === 409) {
-        if (msgEl) msgEl.textContent = "That slot was just taken. Please choose another time.";
-        if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = "Confirm booking"; }
+        if (msgEl) msgEl.textContent = tr("slotTaken");
+        if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = tr("confirmBooking"); }
         return;
       }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        if (msgEl) msgEl.textContent = err.detail || "Booking failed. Please try again.";
-        if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = "Confirm booking"; }
+        if (msgEl) msgEl.textContent = tr("bookingFailed");
+        if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = tr("confirmBooking"); }
         return;
       }
 
       const data = await res.json();
       cardEl.remove();
-      appendMessage("assistant", data.message || "Your appointment is confirmed! Check your email for the invite.");
+      appendMessage("assistant", data.message || tr("bookingConfirmed"));
       scrollToBottom();
     } catch {
-      if (msgEl) msgEl.textContent = "Network error. Please try again.";
-      if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = "Confirm booking"; }
+      if (msgEl) msgEl.textContent = tr("networkError");
+      if (bookBtn) { bookBtn.disabled = false; bookBtn.textContent = tr("confirmBooking"); }
     }
   }
 
@@ -932,7 +1015,13 @@
       messages.push({ role: "assistant", content: reply });
     } catch (err) {
       removeElement(thinkingEl);
-      appendMessage("assistant", "Sorry, something went wrong. Please try again.");
+      const code = err?.code || err?.message;
+      appendMessage(
+        "assistant",
+        code === "timeout" ? tr("timeout")
+          : code === "limit" ? tr("limitReached")
+          : tr("genericError")
+      );
       console.error("[Foji Widget]", err);
     } finally {
       setStreaming(false);
@@ -952,8 +1041,12 @@
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `API error ${res.status}`);
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.detail || `API error ${res.status}`);
+      // 402/429: the business's plan is inactive or its monthly limit is used
+      // up — not something "try again" will fix, so the visitor is told so.
+      err.code = res.status === 429 || res.status === 402 ? "limit" : "http";
+      throw err;
     }
 
     const reader = res.body.getReader();
@@ -1002,6 +1095,15 @@
             scrollToBottom();
           }
 
+          // The server is retrying with another model after a failure partway
+          // through; drop the half-answer and show the typing dots again so the
+          // new answer isn't appended to the old one.
+          if (parsed.reset) {
+            fullText = "";
+            if (msgEl) { removeElement(msgEl); msgEl = null; }
+            thinkingEl = appendTypingIndicator();
+          }
+
           if (parsed.done && parsed.session_id) {
             // Persist the server-assigned session ID for conversation continuity
             setSessionId(parsed.session_id);
@@ -1012,11 +1114,17 @@
           }
 
           if (parsed.error) {
-            throw new Error(parsed.error);
+            // Clear anything still on screen for this reply before the caller
+            // shows a friendly error in its place.
+            removeElement(thinkingEl);
+            if (msgEl && !fullText) removeElement(msgEl);
+            const err = new Error(parsed.error);
+            err.code = parsed.error; // "timeout" | "unavailable"
+            throw err;
           }
         } catch (e) {
-          if (e.message && !e.message.startsWith("JSON")) throw e;
-          // JSON parse errors on non-data lines — skip silently
+          if (e instanceof SyntaxError) continue; // non-JSON data line — skip
+          throw e;
         }
       }
     }
