@@ -86,6 +86,7 @@
   const STRINGS = {
     PtBr: {
       greeting: "Oi! \u{1F44B} Como posso te ajudar?",
+      greetingNamed: "Oi! \u{1F44B} Aqui é {name} — como posso te ajudar?",
       greetingCompany: "Oi! \u{1F44B} Aqui é da equipe {company} — como posso te ajudar?",
       placeholder: "Digite sua mensagem…",
       genericError: "Ops, tive um probleminha pra responder agora \u{1F605} Pode tentar de novo em alguns segundos?",
@@ -111,6 +112,7 @@
     },
     Es: {
       greeting: "¡Hola! \u{1F44B} ¿En qué te puedo ayudar?",
+      greetingNamed: "¡Hola! \u{1F44B} Soy {name} — ¿en qué te puedo ayudar?",
       greetingCompany: "¡Hola! \u{1F44B} Te habla el equipo de {company} — ¿en qué te puedo ayudar?",
       placeholder: "Escribe tu mensaje…",
       genericError: "Uy, tuve un problemita para responder \u{1F605} ¿Puedes intentarlo de nuevo en unos segundos?",
@@ -136,6 +138,7 @@
     },
     En: {
       greeting: "Hi there! \u{1F44B} How can I help?",
+      greetingNamed: "Hi there! \u{1F44B} I'm {name} — how can I help?",
       greetingCompany: "Hi there! \u{1F44B} This is the {company} team — how can I help?",
       placeholder: "Type a message…",
       genericError: "Oops, I had a little trouble answering just now \u{1F605} Could you try again in a few seconds?",
@@ -703,11 +706,12 @@
 
         // Apply server-side widget customization overrides
         if (agentInfo.widget_primary_color) primary = agentInfo.widget_primary_color;
-        // Title: dashboard setting > embed attribute > the company's name.
-        // "Assistant" was the old fallback — exactly the word a visitor
-        // shouldn't see.
+        // Title: dashboard setting > embed attribute > the agent's name (what the
+        // business called it — "Indi") > the company's name. "Assistant" was
+        // the old fallback — exactly the word a visitor shouldn't see.
         if (agentInfo.widget_title) title = agentInfo.widget_title;
-        else if (!script?.getAttribute("data-title") && agentInfo.company_name) title = agentInfo.company_name;
+        else if (!script?.getAttribute("data-title") && (agentInfo.name || agentInfo.company_name))
+          title = agentInfo.name || agentInfo.company_name;
         if (agentInfo.widget_placeholder) placeholder = agentInfo.widget_placeholder;
         else if (!script?.getAttribute("data-placeholder")) placeholder = tr("placeholder");
         if (agentInfo.widget_position) position = agentInfo.widget_position;
@@ -817,10 +821,13 @@
     if (welcomeMsg) {
       greeting = welcomeMsg;
     } else {
-      // "Ol\u00e1! Sou {agent name}" introduced a bot by its product name. Say who
-      // the visitor is talking to \u2014 the company \u2014 the way a person would.
-      const company = agentInfo?.company_name;
-      greeting = company ? tr("greetingCompany", { company }) : tr("greeting");
+      // Introduce the agent by the name the business gave it ("Aqui \u00e9 Indi");
+      // if it's just named after the company, say it's the company's team.
+      const name = (agentInfo?.name || "").trim();
+      const company = (agentInfo?.company_name || "").trim();
+      if (name && name.toLowerCase() !== company.toLowerCase()) greeting = tr("greetingNamed", { name });
+      else if (company) greeting = tr("greetingCompany", { company });
+      else greeting = tr("greeting");
     }
     appendMessage("assistant", greeting);
     messages.push({ role: "assistant", content: greeting });
