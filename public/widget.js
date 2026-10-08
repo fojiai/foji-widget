@@ -172,10 +172,53 @@
   }
   let agentInfoPromise = null; // resolved when fetch completes
 
+  // ── Colour (the business picks any colour; the chat must stay readable) ────
+
+  /** "#abc" / "abc" / "#AABBCC" → "#aabbcc"; anything else → the Foji red. */
+  function safeHex(value) {
+    let v = String(value || "").trim().replace(/^#/, "");
+    if (/^[0-9a-f]{3}$/i.test(v)) v = v.split("").map((c) => c + c).join("");
+    return /^[0-9a-f]{6}$/i.test(v) ? "#" + v.toLowerCase() : "#ff2d2d";
+  }
+
+  function luminance(hex) {
+    const ch = (i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * ch(1) + 0.7152 * ch(3) + 0.0722 * ch(5);
+  }
+
+  const contrast = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+  /**
+   * Text and icons that sit on the chosen colour: white, unless dark text
+   * reads better (a white, yellow or pastel pick used to make the header,
+   * the visitor's own bubbles and the send button white on white).
+   */
+  function onPrimary(hex) {
+    const l = luminance(hex);
+    return contrast(1, l) >= contrast(l, 0.0156) ? "#ffffff" : "#1f2937";
+  }
+
+  /** The colour used on white (links, focus rings): falls back to dark grey when the pick is too pale to see. */
+  function accentOnWhite(hex) {
+    return contrast(1, luminance(hex)) >= 2.2 ? hex : "#1f2937";
+  }
+
+  /** A very light pick needs an outline, or the launcher and header vanish into a white page. */
+  function needsOutline(hex) {
+    return luminance(hex) > 0.8;
+  }
+
   // ── Styles (CSS custom properties for dynamic theming) ────────────────────
 
   function generateCSS() {
     const pos = position;
+    primary = safeHex(primary);
+    const ink = onPrimary(primary);
+    const accent = accentOnWhite(primary);
+    const outline = needsOutline(primary) ? "1px solid #e4e4e7" : "none";
     return `
     :host { all: initial; font-family: system-ui, -apple-system, sans-serif; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -188,13 +231,13 @@
       width: 56px; height: 56px;
       border-radius: 50%;
       background: var(--foji-primary, ${primary});
-      border: none; cursor: pointer;
+      border: ${outline}; cursor: pointer;
       box-shadow: 0 4px 20px rgba(0,0,0,0.25);
       display: flex; align-items: center; justify-content: center;
       transition: transform 0.2s, box-shadow 0.2s;
     }
     #foji-launcher:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(0,0,0,0.3); }
-    #foji-launcher svg { width: 26px; height: 26px; fill: white; }
+    #foji-launcher svg { width: 26px; height: 26px; fill: var(--foji-on-primary, ${ink}); }
 
     #foji-window {
       position: fixed;
@@ -215,23 +258,24 @@
 
     #foji-header {
       background: var(--foji-primary, ${primary});
-      color: white;
+      color: var(--foji-on-primary, ${ink});
+      border-bottom: ${outline};
       padding: 14px 16px;
       display: flex; align-items: center; gap: 10px;
     }
     #foji-header-avatar {
       width: 32px; height: 32px; border-radius: 50%;
-      background: rgba(255,255,255,0.25);
+      background: rgba(127,127,127,0.2);
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    #foji-header-avatar svg { width: 18px; height: 18px; fill: white; }
+    #foji-header-avatar svg { width: 18px; height: 18px; fill: var(--foji-on-primary, ${ink}); }
     #foji-header-title { font-weight: 600; font-size: 15px; flex: 1; }
     #foji-close {
       background: none; border: none; cursor: pointer;
-      color: rgba(255,255,255,0.8); font-size: 20px; line-height: 1;
+      color: var(--foji-on-primary, ${ink}); opacity: 0.8; font-size: 20px; line-height: 1;
       padding: 2px; border-radius: 4px;
     }
-    #foji-close:hover { color: white; }
+    #foji-close:hover { opacity: 1; }
 
     #foji-messages {
       flex: 1; overflow-y: auto;
@@ -245,7 +289,8 @@
     }
     .foji-msg.user {
       align-self: flex-end;
-      background: var(--foji-primary, ${primary}); color: white;
+      background: var(--foji-primary, ${primary}); color: var(--foji-on-primary, ${ink});
+      border: ${outline};
       border-bottom-right-radius: 4px;
     }
     .foji-msg.assistant {
@@ -280,7 +325,7 @@
     .foji-msg.assistant pre code {
       background: none; padding: 0; font-size: 12px;
     }
-    .foji-msg.assistant a { color: var(--foji-primary, ${primary}); text-decoration: underline; }
+    .foji-msg.assistant a { color: var(--foji-accent, ${accent}); text-decoration: underline; }
     .foji-msg.assistant blockquote {
       border-left: 3px solid #e4e4e7; padding-left: 10px; margin: 4px 0; color: #555;
     }
@@ -312,24 +357,24 @@
       background: #fafafa; resize: none; min-height: 40px; max-height: 120px;
       font-family: inherit; transition: border-color 0.15s;
     }
-    #foji-input:focus { border-color: var(--foji-primary, ${primary}); background: #fff; }
+    #foji-input:focus { border-color: var(--foji-accent, ${accent}); background: #fff; }
     #foji-send {
       width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
-      background: var(--foji-primary, ${primary}); border: none; cursor: pointer;
+      background: var(--foji-primary, ${primary}); border: ${outline}; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.15s, transform 0.1s;
     }
     #foji-send:hover { opacity: 0.9; }
     #foji-send:active { transform: scale(0.92); }
     #foji-send:disabled { opacity: 0.5; cursor: not-allowed; }
-    #foji-send svg { width: 18px; height: 18px; fill: white; }
+    #foji-send svg { width: 18px; height: 18px; fill: var(--foji-on-primary, ${ink}); }
 
     #foji-attach {
       width: 34px; height: 40px; flex-shrink: 0; border: none; background: transparent;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       color: #71717a; border-radius: 50%; padding: 0; transition: color 0.15s;
     }
-    #foji-attach:hover { color: var(--foji-primary, ${primary}); }
+    #foji-attach:hover { color: var(--foji-accent, ${accent}); }
     #foji-attach:disabled { opacity: 0.5; cursor: not-allowed; }
     #foji-attach svg { width: 22px; height: 22px; fill: currentColor; }
     #foji-attachment {
@@ -355,7 +400,7 @@
       padding: 4px 0 8px;
     }
     #foji-powered a { color: #aaa; text-decoration: none; }
-    #foji-powered a:hover { color: var(--foji-primary, ${primary}); }
+    #foji-powered a:hover { color: var(--foji-accent, ${accent}); }
 
     #foji-handoff-btn {
       display: flex; align-items: center; gap: 6px;
@@ -365,7 +410,7 @@
       font-family: inherit; transition: border-color 0.15s, color 0.15s;
       margin: 0 14px 8px; align-self: flex-start;
     }
-    #foji-handoff-btn:hover { border-color: var(--foji-primary, ${primary}); color: var(--foji-primary, ${primary}); }
+    #foji-handoff-btn:hover { border-color: var(--foji-accent, ${accent}); color: var(--foji-accent, ${accent}); }
     #foji-handoff-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
     #foji-handoff-btn.hidden { display: none; }
 
@@ -374,15 +419,15 @@
       align-self: flex-start; max-width: 95%;
     }
     .foji-starter-chip {
-      background: #fff; color: var(--foji-primary, ${primary});
-      border: 1px solid var(--foji-primary, ${primary});
+      background: #fff; color: var(--foji-accent, ${accent});
+      border: 1px solid var(--foji-accent, ${accent});
       border-radius: 16px; padding: 6px 12px;
       font-size: 13px; cursor: pointer;
       font-family: inherit;
       transition: background 0.15s, color 0.15s;
     }
     .foji-starter-chip:hover {
-      background: var(--foji-primary, ${primary}); color: white;
+      background: var(--foji-primary, ${primary}); color: var(--foji-on-primary, ${ink});
     }
 
     @media (max-width: 420px) {
@@ -414,11 +459,11 @@
       font-family: inherit;
       transition: border-color 0.15s;
     }
-    .foji-lead-input:focus { border-color: var(--foji-primary, ${primary}); }
+    .foji-lead-input:focus { border-color: var(--foji-accent, ${accent}); }
     #foji-lead-submit {
       padding: 9px 16px;
       background: var(--foji-primary, ${primary});
-      color: #fff;
+      color: var(--foji-on-primary, ${ink});
       border: none;
       border-radius: 8px;
       font-size: 14px;
@@ -476,11 +521,11 @@
       color: inherit;
       transition: border-color 0.15s, background 0.15s;
     }
-    .foji-slot-btn:hover { border-color: var(--foji-primary, #FF2D2D); }
+    .foji-slot-btn:hover { border-color: var(--foji-accent, ${accent}); }
     .foji-slot-btn.selected {
       border-color: var(--foji-primary, #FF2D2D);
       background: var(--foji-primary, #FF2D2D);
-      color: #fff;
+      color: var(--foji-on-primary, ${ink});
     }
     .foji-calendar-form {
       display: none;
@@ -499,11 +544,11 @@
       color: inherit;
       outline: none;
     }
-    .foji-calendar-form input:focus { border-color: var(--foji-primary, #FF2D2D); }
+    .foji-calendar-form input:focus { border-color: var(--foji-accent, ${accent}); }
     .foji-book-btn {
       padding: 9px 16px;
       background: var(--foji-primary, #FF2D2D);
-      color: #fff;
+      color: var(--foji-on-primary, ${ink});
       border: none;
       border-radius: 8px;
       font-size: 13px;
@@ -529,7 +574,10 @@
 
     // Update CSS custom property on the host
     const host = shadowRoot.host;
+    primary = safeHex(primary);
     host.style.setProperty("--foji-primary", primary);
+    host.style.setProperty("--foji-on-primary", onPrimary(primary));
+    host.style.setProperty("--foji-accent", accentOnWhite(primary));
 
     // Update style element (for position-dependent rules)
     const style = shadowRoot.querySelector("style");
